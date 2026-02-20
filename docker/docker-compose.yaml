@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:15
@@ -35,19 +33,25 @@ services:
             endpoint: "0.0.0.0:8889"
           debug:
             verbosity: detailed
+          otlp/datadog:
+            endpoint: "datadog-agent:4317"
+            tls:
+              insecure: true
         service:
           pipelines:
             metrics:
               receivers: [otlp]
-              exporters: [prometheus, debug]
+              exporters: [prometheus, debug, otlp/datadog]
             traces:
               receivers: [otlp]
-              exporters: [debug]
+              exporters: [debug, otlp/datadog]
     ports:
       - "4317:4317"
       - "4318:4318"
       - "8888:8888"
       - "8889:8889"
+    depends_on:
+      - datadog-agent
 
   prometheus:
     image: prom/prometheus:latest
@@ -67,6 +71,19 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - grafana_data:/var/lib/grafana
+
+  datadog-agent:
+    image: gcr.io/datadoghq/agent:latest
+    environment:
+      - DD_API_KEY=${DD_API_KEY}
+      - DD_SITE=datadoghq.eu
+      - DD_APM_ENABLED=true
+      - DD_LOGS_ENABLED=true
+      - DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT=0.0.0.0:4317
+    ports:
+      - "4315:4317"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   postgres_data:
